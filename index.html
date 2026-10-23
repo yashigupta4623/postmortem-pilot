@@ -176,7 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v10</span>
+    <span class="build" id="build">build&nbsp;v11</span>
   </nav>
 
   <div class="hero">
@@ -263,12 +263,17 @@
 const SEGS=["timeline","impact","root cause","fix","prevention"];
 const CLS={"timeline":"tl","impact":"impact","root cause":"cause","fix":"fix","prevention":"prev"};
 const RULES=[
-  {s:"impact",re:/\b(504|500|5\d\d|outage|down|degraded|timeout|timing out|errors?|failing|affected|users?|customers?|checkout|revenue|unavailable)\b/i},
-  {s:"root cause",re:/\b(because|caused by|due to|root cause|slow query|unindexed|memory leak|oom|deadlock|bad deploy|regression|misconfig|rate limit|exhaust|race condition)\b/i},
-  {s:"fix",re:/\b(fixed|rolled? back|rollback|restart|killed|scaled|patched|resolved|mitigated|recovered|restored|failover|reverted)\b/i},
-  {s:"prevention",re:/\b(prevent|add (an? )?alert|add (an? )?index|monitoring|follow[- ]?up|action item|going forward|we should|add a test|runbook|guard|todo)\b/i},
+  {s:"impact",re:/\b(504|500|5\d\d|outage|down|degraded|timeout|timing out|times out|errors?|failing|affected|users?|customers?|checkout|revenue|unavailable|unreachable|non[- ]?connecting|can'?t (log in|ssh|connect|reach|access)|cannot (log in|ssh|connect|reach|access)|blocked|blocking|not working|broken|deploys? are)\b/gi},
+  {s:"root cause",re:/\b(because|caused by|due to|root cause|the (issue|problem) (is|was)|turns out|slow query|unindexed|memory leak|oom|deadlock|bad deploy|regression|misconfig|security group|rate limit|exhaust|race condition|missing (the )?(rule|index|config)|removed (the )?(rule|inbound))\b/gi},
+  {s:"fix",re:/\b(fixed|re-?added|re-?add|rolled? back|rollback|restart(ed)?|killed|scaled|patched|resolved|mitigated|recovered|restored|re-?connect(ed)?|failover|reverted|added (the|an|a) (inbound )?(rule|index)|unblocked|back in|working again)\b/gi},
+  {s:"prevention",re:/\b(prevent|add (an? )?alert|add (an? )?index|add monitoring|follow[- ]?up|action item|going forward|we should|add a (test|guard|check)|runbook|require(s)? review|put a guard|to-?do)\b/gi},
 ];
-const classify=t=>(RULES.find(r=>r.re.test(t))||{s:"timeline"}).s;
+// Score-based: pick the section with the STRONGEST signal, not just the first keyword.
+function classify(t){
+  let best="timeline",bestN=0;
+  for(const r of RULES){ const n=(t.match(r.re)||[]).length; if(n>bestN){ bestN=n; best=r.s; } }
+  return best;
+}
 
 // Always start with a clean, empty slate — nothing is pre-filled or restored.
 // The title and every timeline entry appear only when you dictate them.
@@ -448,7 +453,10 @@ function handleFinal(raw){
     actions.push(()=>hit.x.run(hit.m));
   }
   if(actions.length) actions.forEach(a=>a());   // run the commands in order
-  else add(raw);                                 // otherwise it's incident narration
+  else {                                         // narration — split into sentences so each lands in its own section
+    const parts=raw.split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean);
+    (parts.length?parts:[raw]).forEach(add);
+  }
 }
 
 function startMic(){listening=true;window.__micOn=true;micBtn.classList.add("live");wave.classList.add("on");interim.textContent="🎙️ listening…";try{rec.start()}catch(e){}}
