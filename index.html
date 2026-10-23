@@ -203,7 +203,7 @@
             <button class="round go" id="add" type="button" title="Log it">➜</button>
           </div>
           <div class="interim" id="interim"></div>
-          <p class="keyhint">Press your <b>Wispr&nbsp;Flow</b> key, say one step, let go — <b>it logs itself</b> and auto-tags it. Repeat for each approach, then say “<b>generate the postmortem</b>”.</p>
+          <p class="keyhint"><b>Keep talking — no chunking.</b> Click the <b>🎤</b> once, then narrate your whole debugging out loud; I split it into steps automatically on each natural pause. Say “<b>generate the postmortem</b>” when done. <span style="color:var(--grey500)">(Prefer push-to-talk? Your Wispr Flow key works per step too.)</span></p>
           <div class="chipwrap">
             <span class="chlabel">Try saying</span>
             <button class="chip" data-say="The EC2 instance is unreachable and SSH connection times out">“EC2 unreachable, SSH times out”</button>
@@ -293,7 +293,9 @@ function renderTL(){
   tl.scrollTop=tl.scrollHeight;
 }
 function flash(){const l=$("#logged");l.textContent="✓ logged "+now();l.classList.add("show");setTimeout(()=>l.classList.remove("show"),1600)}
-function add(text){text=(text||"").trim();if(!text)return;events.push({ts:now(),text,seg:classify(text)});save();renderTL();flash()}
+function add(text){text=(text||"").trim();if(!text)return;events.push({ts:now(),text,seg:classify(text)});
+  if(!title.value.trim()&&events.length===1){ title.value = text.length>52 ? text.slice(0,52).replace(/\s+\S*$/,"")+"…" : text; }
+  save();renderTL();flash()}
 
 $("#add").onclick=()=>{const v=$("#say").value;$("#say").value="";handleFinal(v);$("#say").focus()};
 $("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#add").click()}});
