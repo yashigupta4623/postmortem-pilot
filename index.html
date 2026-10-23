@@ -270,13 +270,16 @@ const classify=t=>(RULES.find(r=>r.re.test(t))||{s:"timeline"}).s;
 let events=[],sev="SEV2";
 const $=s=>document.querySelector(s);
 const title=$("#title");
+// The report rebuilds itself live on every change — no need to say "generate".
+let genTimer=null;
+function autoGen(){ clearTimeout(genTimer); genTimer=setTimeout(()=>{ if(typeof gen==="function") gen(); },280); }
 
 const pad=n=>String(n).padStart(2,"0");
 const now=()=>{const d=new Date();return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())};
 setInterval(()=>{$("#clock").textContent=now()},1000);$("#clock").textContent=now();
 
 function save(){localStorage.setItem("pp3_e",JSON.stringify(events));
-  localStorage.setItem("pp3_m",JSON.stringify({title:title.value,sev}))}
+  localStorage.setItem("pp3_m",JSON.stringify({title:title.value,sev}));autoGen();}
 function setSev(v){sev=v;document.querySelectorAll(".sev").forEach(el=>el.removeAttribute("data-on"));
   document.querySelector(`.sev[data-sev="${v}"]`).setAttribute("data-on","1");save()}
 $("#sevpick").addEventListener("click",e=>{const s=e.target.closest(".sev");if(s)setSev(s.dataset.sev)});
