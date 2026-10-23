@@ -176,7 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v12</span>
+    <span class="build" id="build">build&nbsp;v13</span>
   </nav>
 
   <div class="hero">
@@ -330,13 +330,13 @@ $("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.prev
 const say=$("#say");
 let autoTimer=null;
 say.focus();                                  // ready the moment the page loads
-document.addEventListener("click",e=>{        // clicking anywhere re-arms the box for your Wispr key
-  if(!e.target.closest("button,select,a")) say.focus();
-});
-window.addEventListener("focus",()=>{ if(!window.__micOn) say.focus(); });               // tab regains focus → re-arm
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden && !window.__micOn) say.focus(); });
-setInterval(()=>{ if(!window.__micOn && document.hasFocus() && document.activeElement!==say
-   && !/^(BUTTON|SELECT|A)$/.test((document.activeElement||{}).tagName||"")) say.focus(); }, 1500); // keep it armed
+// Re-arm the capture box ONLY when nothing else is focused — never steal focus from
+// another field (title, Publish-setup URL/email), so you can type/paste there freely.
+function armSay(){ if(window.__micOn) return; const a=document.activeElement; if(!a||a===document.body) say.focus(); }
+document.addEventListener("click",e=>{ if(!e.target.closest("button,select,a,input,textarea,label")) say.focus(); });
+window.addEventListener("focus",armSay);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) armSay(); });
+setInterval(armSay, 1500);
 say.addEventListener("input",e=>{             // Wispr inserts a whole phrase (a "burst") → process it by itself
   clearTimeout(autoTimer);
   const burst = e.inputType==="insertFromPaste" || e.inputType==="insertReplacementText" || (e.data && e.data.length>2);
