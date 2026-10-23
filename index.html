@@ -283,6 +283,23 @@ function add(text){text=(text||"").trim();if(!text)return;events.push({ts:now(),
 
 $("#add").onclick=()=>{add($("#say").value);$("#say").value="";$("#say").focus()};
 $("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#add").click()}});
+
+/* ---------- Wispr Flow loop: box stays focused, lines auto-add on pause ----------
+   Press your Wispr hotkey → speak → Wispr types into this focused box →
+   you pause → the line logs itself and the box clears, ready for the next. */
+const say=$("#say");
+let autoTimer=null;
+say.focus();                                  // ready the moment the page loads
+document.addEventListener("click",e=>{        // clicking empty space re-arms the box
+  if(!e.target.closest("button,select,input,textarea,a")) say.focus();
+});
+say.addEventListener("input",()=>{            // Wispr just inserted text → log it after a short pause
+  clearTimeout(autoTimer);
+  autoTimer=setTimeout(()=>{
+    const v=say.value.trim();
+    if(v){ v.split(/\r?\n/).forEach(add); say.value=""; say.focus(); }
+  },1300);
+});
 // Pasting a dictated line (Cmd+V) auto-adds it — works even when Wispr can't type directly into the box.
 $("#say").addEventListener("paste",e=>{
   const t=((e.clipboardData||window.clipboardData).getData("text")||"").trim();
