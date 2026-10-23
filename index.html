@@ -142,6 +142,11 @@
 
   /* document */
   .docbar{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .setbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--line2);background:var(--surface2)}
+  .setlbl{font-size:12.5px;font-weight:500;color:var(--grey700)}
+  .setbar input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-size:13px;font-family:var(--body);background:var(--surface);color:var(--ink)}
+  .setbar input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+  .setstatus{font-size:12.5px;flex-basis:100%}
   .doc{padding:30px 36px;max-height:600px;overflow:auto}
   .doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
   .doc .docmeta{display:flex;gap:18px;flex-wrap:wrap;color:var(--grey700);font-size:12.5px;
@@ -233,10 +238,16 @@
           <h2 style="font-family:var(--sans);font-size:16px;font-weight:500;margin:0">Postmortem document</h2>
           <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn primary" id="gen">Generate</button>
-            <button class="btn ghost" id="pub">📄 Export Google Doc</button>
+            <button class="btn ghost" id="pub">📧 Publish to Google Doc</button>
             <button class="btn ghost" id="copy">Copy Markdown</button>
             <button class="btn ghost" id="dl">Download .md</button>
           </div>
+        </div>
+        <div class="setbar">
+          <span class="setlbl">📧 Publish setup</span>
+          <input id="gsUrl" placeholder="Google Apps Script Web App URL (ends in /exec)">
+          <input id="gsEmail" placeholder="Email to send the doc to">
+          <span class="setstatus" id="setStatus"></span>
         </div>
         <div class="doc" id="doc"><div class="placeholder">Add a few lines, then hit <b>Generate</b> to assemble the RCA — ready to paste into Jira or Confluence.</div></div>
       </div>
@@ -393,7 +404,7 @@ function handleFinal(text){
     gen(); flashCmd("📄 Generating postmortem…"); return;
   }
   // voice command — PUBLISH / EXPORT as a Google Doc
-  if(/^(publish|export|save)\b/.test(low) && !/\btimeline\b/.test(low)){ exportDoc(); flashCmd("📄 Exporting Google Doc…"); return; }
+  if(/^(publish|export|save|email|mail)\b/.test(low) && !/\btimeline\b/.test(low)){ publishToGoogle(); return; }
   // voice command — SET the incident title
   let m=low.match(/^(?:incident (?:title|name)|title|name this(?: incident)?|call this(?: incident)?)\s+(?:is\s+|as\s+)?(.+)/);
   if(m){ title.value=cap(m[1]); save(); flashCmd("📝 Title set"); return; }
@@ -436,7 +447,33 @@ function exportDoc(){
   a.download=(title.value.trim()||"postmortem").replace(/\s+/g,"-").toLowerCase()+".doc";
   document.body.appendChild(a);a.click();a.remove();
 }
-const pubBtn=$("#pub"); if(pubBtn) pubBtn.onclick=exportDoc;
+// ---- Publish: create a Google Doc + email it, via the user's own Apps Script backend ----
+const gsUrl=$("#gsUrl"), gsEmail=$("#gsEmail");
+try{gsUrl.value=localStorage.getItem("pp_gsurl")||""}catch(e){}
+try{gsEmail.value=localStorage.getItem("pp_gsemail")||""}catch(e){}
+gsUrl.addEventListener("input",()=>localStorage.setItem("pp_gsurl",gsUrl.value.trim()));
+gsEmail.addEventListener("input",()=>localStorage.setItem("pp_gsemail",gsEmail.value.trim()));
+function setStatus(msg,color){const s=$("#setStatus");s.textContent=msg;s.style.color=color||"";}
+function publishPayload(){
+  const d=data();
+  return { title:d.title, sev:d.sev, window:d.win, tldr:d.tldr, email:gsEmail.value.trim(),
+    impact:d.imp.map(e=>e.text), rootCause:d.rc.map(e=>e.text), fix:d.fx.map(e=>e.text),
+    prevention:d.pv.map(e=>e.text), timeline:events.map(e=>({ts:e.ts,text:e.text})) };
+}
+async function publishToGoogle(){
+  if(!events.length){ setStatus("Nothing to publish yet — narrate the incident first.","var(--amber)"); return; }
+  gen();
+  const url=gsUrl.value.trim();
+  if(!url){ exportDoc(); setStatus("No Google setup yet — downloaded a .doc instead. Paste your Apps Script URL above to email a real Google Doc.","var(--amber)"); return; }
+  const email=gsEmail.value.trim();
+  setStatus("📧 Creating your Google Doc and emailing it"+(email?(" to "+email):"")+"…","var(--blue)");
+  flashCmd("📧 Publishing…");
+  try{
+    await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(publishPayload())});
+    setStatus("✅ Sent! The Google Doc link will arrive in "+(email||"your inbox")+" within ~10 seconds.","var(--green)");
+  }catch(err){ setStatus("Couldn't reach your Apps Script URL — check it's deployed as a Web App with access = Anyone.","var(--red)"); }
+}
+const pubBtn=$("#pub"); if(pubBtn) pubBtn.onclick=publishToGoogle;
 // "Try saying" chips — click to run that spoken command (handy for testing without voice).
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>handleFinal(c.dataset.say));
 
