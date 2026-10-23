@@ -399,12 +399,14 @@ function handleFinal(text){
   const t=text.trim(); if(!t) return;
   const low=t.toLowerCase().replace(/[.!?,]+$/,"").trim();
   // voice command — GENERATE the postmortem
-  if((/\b(generate|create|build|assemble|make|prepare)\b/.test(low) && /\b(postmortem|post ?mortem|rca|report|doc(ument)?|summary)\b/.test(low))
-     || /^(wrap (it|this) up|wrap up|finish up|that'?s it|i'?m done|all done)$/.test(low)){
-    gen(); flashCmd("📄 Generating postmortem…"); return;
+  if((/\b(generate|create|build|assemble|make|prepare|draft|produce|give me|show me|write)\b/.test(low)
+        && /\b(postmortem|post ?mortem|rca|report|doc(ument)?|summary|write ?up)\b/.test(low))
+     || /^(generate|generate it|generate now|generate everything|do it|wrap (it|this) up|wrap up|finish up|that'?s it|i'?m done|all done)$/.test(low)){
+    gen(); flashCmd("📄 Generating the report…"); return;
   }
-  // voice command — PUBLISH / EXPORT as a Google Doc
-  if(/^(publish|export|save|email|mail)\b/.test(low) && !/\btimeline\b/.test(low)){ publishToGoogle(); return; }
+  // voice command — PUBLISH / EMAIL as a Google Doc
+  if((/^(publish|export|save|email|mail|send)\b/.test(low) || /\b(email|mail|send)\s+(it|me|the (report|doc(ument)?|postmortem))\b/.test(low))
+     && !/\btimeline\b/.test(low)){ publishToGoogle(); return; }
   // voice command — SET the incident title
   let m=low.match(/^(?:incident (?:title|name)|title|name this(?: incident)?|call this(?: incident)?)\s+(?:is\s+|as\s+)?(.+)/);
   if(m){ title.value=cap(m[1]); save(); flashCmd("📝 Title set"); return; }
