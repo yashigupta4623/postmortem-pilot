@@ -176,7 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v8</span>
+    <span class="build" id="build">build&nbsp;v9</span>
   </nav>
 
   <div class="hero">
@@ -406,27 +406,43 @@ const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
 function flashCmd(msg){interim.textContent=msg;interim.style.color="var(--blue)";interim.style.fontStyle="normal";
   setTimeout(()=>{interim.style.color="";interim.style.fontStyle="";interim.textContent=""},1700);}
 
+// Clean up Wispr's formatting (colons, "post-mortem" hyphen, punctuation) before matching.
+function normalize(s){
+  return (s||"").toLowerCase()
+    .replace(/post[\s-]?mortem/g,"postmortem")
+    .replace(/[^\w\s]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+const TAGS="fix|impact|root cause|prevention|timeline";
+// Command patterns — tolerant of filler words Wispr adds ("a", "the", "for the tag", …).
+const COMMANDS=[
+  { re:new RegExp("\\bmark (?:that|it|this|the last(?: one| line)?)? ?as (?:an? |the )?("+TAGS+")\\b"),
+    run:m=>{ if(events.length){ events[events.length-1].seg=m[1]; save(); renderTL(); flashCmd("🏷️ Re-tagged as "+m[1]); } } },
+  { re:/\b(?:generate|create|build|make|assemble|prepare|draft|produce|give me|show me)\b.*\b(?:postmortem|report|rca|doc|document|summary)\b/,
+    run:()=>{ gen(); flashCmd("📄 Generating the report…"); } },
+  { re:/^(?:generate|generate it|wrap it up|wrap up|finish up|i m done|that s it|all done|done)$/,
+    run:()=>{ gen(); flashCmd("📄 Generating the report…"); } },
+  { re:/^(?:please |now |ok )?(?:publish|export|send it|email it|mail it|send the report|email the report|mail the report)\b/,
+    run:()=>{ publishToGoogle(); } },
+];
+
 // Every finished phrase — from the mic OR from Wispr typing into the box — lands here.
-function handleFinal(text){
-  const t=text.trim(); if(!t) return;
-  const low=t.toLowerCase().replace(/[.!?,]+$/,"").trim();
-  // voice command — GENERATE the postmortem
-  if((/\b(generate|create|build|assemble|make|prepare|draft|produce|give me|show me|write)\b/.test(low)
-        && /\b(postmortem|post ?mortem|rca|report|doc(ument)?|summary|write ?up)\b/.test(low))
-     || /^(generate|generate it|generate now|generate everything|do it|wrap (it|this) up|wrap up|finish up|that'?s it|i'?m done|all done)$/.test(low)){
-    gen(); flashCmd("📄 Generating the report…"); return;
+function handleFinal(raw){
+  raw=(raw||"").trim(); if(!raw) return;
+  // TITLE — match on the RAW text so "EC2" keeps its casing.
+  const t=raw.match(/^\s*(?:the\s+)?title\s*(?:is)?\s*[:\-–]?\s*(.+?)[.\s]*$/i);
+  if(t){ title.value=cap(t[1].trim()); save(); flashCmd("📝 Title set"); return; }
+  // Split chained commands: "generate the postmortem, then publish" → two commands.
+  const clauses=normalize(raw.replace(/,/g," then ")).split(/\b(?:and then|then)\b/).map(c=>c.trim()).filter(Boolean);
+  const actions=[];
+  for(const c of clauses){
+    const hit=COMMANDS.map(x=>({x,m:c.match(x.re)})).find(o=>o.m);
+    if(!hit){ actions.length=0; break; }   // any non-command clause → treat the whole thing as narration
+    actions.push(()=>hit.x.run(hit.m));
   }
-  // voice command — PUBLISH / EMAIL as a Google Doc
-  if((/^(publish|export|save|email|mail|send)\b/.test(low) || /\b(email|mail|send)\s+(it|me|the (report|doc(ument)?|postmortem))\b/.test(low))
-     && !/\btimeline\b/.test(low)){ publishToGoogle(); return; }
-  // voice command — SET the incident title
-  let m=low.match(/^(?:incident (?:title|name)|title|name this(?: incident)?|call this(?: incident)?)\s+(?:is\s+|as\s+)?(.+)/);
-  if(m){ title.value=cap(m[1]); save(); flashCmd("📝 Title set"); return; }
-  // voice command — RE-TAG the last line
-  m=low.match(/^mark (?:that|this|it|the last(?: one| line)?) as (?:an? |the )?(impact|root cause|fix|prevention|timeline)/);
-  if(m && events.length){ events[events.length-1].seg=m[1]; save(); renderTL(); flashCmd("🏷️ Re-tagged as "+m[1]); return; }
-  // otherwise — it's incident narration → log it, auto-tagged
-  add(t);
+  if(actions.length) actions.forEach(a=>a());   // run the commands in order
+  else add(raw);                                 // otherwise it's incident narration
 }
 
 function startMic(){listening=true;window.__micOn=true;micBtn.classList.add("live");wave.classList.add("on");interim.textContent="🎙️ listening…";try{rec.start()}catch(e){}}
