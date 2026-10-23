@@ -92,6 +92,24 @@
     border-radius:10px;border:1px solid var(--line2)}
   .wtip b{color:var(--ink);font-weight:500}
 
+  /* in-app mic */
+  .micbig{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;
+    border:none;border-radius:12px;padding:18px;font-family:var(--sans);font-weight:500;font-size:16px;
+    color:#fff;background:var(--blue);transition:.15s;margin-bottom:10px}
+  .micbig:hover{background:var(--blue-d)}
+  .micbig:disabled{background:var(--grey500);cursor:default}
+  .micbig.live{background:var(--red)}
+  .micwave{display:inline-flex;align-items:center;gap:3px;height:20px}
+  .micwave i{width:3px;height:6px;background:#fff;border-radius:2px;opacity:.95}
+  .micbig.live .micwave i{animation:wave 1s ease-in-out infinite}
+  .micbig.live .micwave i:nth-child(2){animation-delay:.15s}
+  .micbig.live .micwave i:nth-child(3){animation-delay:.3s}
+  .micbig.live .micwave i:nth-child(4){animation-delay:.45s}
+  .micbig.live .micwave i:nth-child(5){animation-delay:.6s}
+  @keyframes wave{0%,100%{height:6px}50%{height:18px}}
+  .interim{min-height:20px;color:var(--grey600);font-size:14px;font-style:italic;text-align:center;margin-bottom:6px}
+  .ortype{text-align:center;color:var(--grey500);font-size:12px;margin:6px 0 10px}
+
   /* timeline */
   .tl{list-style:none;margin:0;padding:2px 2px 2px 0;max-height:440px;overflow:auto}
   .tl .empty{color:var(--grey500);text-align:center;padding:44px 10px;font-size:14px}
@@ -141,7 +159,7 @@
     <div class="mark">🎙️</div>
     <div class="name"><b>Postmortem</b> Pilot</div>
     <div class="spacer"></div>
-    <div class="wispr">🎙️ Dictate with <b>Wispr&nbsp;Flow</b></div>
+    <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
   </nav>
 
@@ -171,15 +189,21 @@
       <div class="card">
         <div class="hd"><div class="n">1</div><h2>Capture — hands-free</h2></div>
         <div class="bd">
-          <textarea id="say" placeholder="Dictate a line with Wispr Flow, then press Enter&#10;e.g. “10:42, checkout started returning 504s, users can’t pay”"></textarea>
+          <button class="micbig" id="mic">
+            <span class="micwave"><i></i><i></i><i></i><i></i><i></i></span>
+            <span id="micTxt">Start dictating</span>
+          </button>
+          <div class="interim" id="interim"></div>
+          <div class="ortype">— or type / paste a line —</div>
+          <textarea id="say" placeholder="Type a line (or paste a Wispr dictation), then press Enter"></textarea>
           <div class="actions">
             <button class="btn primary" id="add">Add to timeline<span class="kbd">⏎</span></button>
-            <button class="btn ghost" id="paste">📋 Add from clipboard</button>
+            <button class="btn ghost" id="paste">📋 Paste from clipboard</button>
             <button class="btn text" id="seed">Load sample</button>
             <button class="btn text" id="clear">Clear</button>
             <span class="logged" id="logged">✓ logged</span>
           </div>
-          <div class="wtip"><b>How to use:</b> dictate a line with <b>Wispr Flow</b>. If it types into the box, press <b>Enter</b>. If Wispr shows a <b>Copy</b> button instead, tap Copy → then press <b>Cmd+V</b> here (or click <b>📋 Add from clipboard</b>) and the line is added automatically. Every line is timestamped and auto-sorted. Hands-free, powered by Wispr Flow.</div>
+          <div class="wtip"><b>Two hands-free ways to capture:</b> ① Click <b>Start dictating</b> and just talk — each sentence drops into the timeline automatically. ② Or dictate with <b>Wispr Flow</b> → Copy → paste here. Tip: build the whole tool by voice with Wispr to grow your usage card.</div>
         </div>
       </div>
 
@@ -315,6 +339,33 @@ function markdown(){
 $("#gen").onclick=gen;
 $("#copy").onclick=async()=>{try{await navigator.clipboard.writeText(markdown());$("#copy").textContent="Copied ✓";setTimeout(()=>$("#copy").textContent="Copy Markdown",1400)}catch(e){alert("Copy failed — select manually.")}};
 $("#dl").onclick=()=>{const blob=new Blob([markdown()],{type:"text/markdown"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.value.trim()||"postmortem").replace(/\s+/g,"-").toLowerCase()+".md";a.click()};
+
+/* ---------- In-app voice: the browser's own speech engine ----------
+   Reliable in Chrome, no Wispr-into-webpage dependency. Click, talk, lines appear. */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const micBtn=$("#mic"),micTxt=$("#micTxt"),interim=$("#interim");
+let rec=null,listening=false;
+function startMic(){listening=true;micBtn.classList.add("live");micTxt.textContent="Listening… click to stop";try{rec.start()}catch(e){}}
+function stopMic(){listening=false;micBtn.classList.remove("live");micTxt.textContent="Start dictating";interim.textContent="";try{rec.stop()}catch(e){}}
+if(!SR){micBtn.disabled=true;micTxt.textContent="Voice needs Chrome / Edge";}
+else{
+  rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang="en-US";
+  rec.onresult=e=>{
+    let live="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i];
+      if(r.isFinal) add(r[0].transcript); else live+=r[0].transcript;
+    }
+    interim.textContent=live;
+  };
+  rec.onend=()=>{if(listening){try{rec.start()}catch(e){}}};
+  rec.onerror=ev=>{
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){
+      stopMic();alert("Microphone is blocked. Click the camera/lock icon in Chrome's address bar → allow the microphone → reload, then try again.");
+    }
+  };
+  micBtn.onclick=()=>{ listening ? stopMic() : startMic(); };
+}
 
 renderTL();if(events.length)gen();
 </script>
