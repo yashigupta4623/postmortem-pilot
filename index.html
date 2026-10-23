@@ -176,7 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v11</span>
+    <span class="build" id="build">build&nbsp;v12</span>
   </nav>
 
   <div class="hero">
@@ -505,6 +505,7 @@ function setStatus(msg,color){const s=$("#setStatus");s.textContent=msg;s.style.
 function publishPayload(){
   const d=data();
   return { title:d.title, sev:d.sev, window:d.win, tldr:d.tldr, email:gsEmail.value.trim(),
+    raw: events.map(e=>e.text).join("\n"),   // full narration — the AI re-structures this
     impact:d.imp.map(e=>e.text), rootCause:d.rc.map(e=>e.text), fix:d.fx.map(e=>e.text),
     prevention:d.pv.map(e=>e.text), timeline:events.map(e=>({ts:e.ts,text:e.text})) };
 }
@@ -514,7 +515,7 @@ async function publishToGoogle(){
   const url=gsUrl.value.trim();
   if(!url){ exportDoc(); setStatus("No Google setup yet — downloaded a .doc instead. Paste your Apps Script URL above to email a real Google Doc.","var(--amber)"); return; }
   const email=gsEmail.value.trim();
-  setStatus("📧 Creating your Google Doc and emailing it"+(email?(" to "+email):"")+"…","var(--blue)");
+  setStatus("🤖 AI is structuring your report, creating the Google Doc and emailing it"+(email?(" to "+email):"")+"…","var(--blue)");
   flashCmd("📧 Publishing…");
   try{
     await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(publishPayload())});
