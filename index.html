@@ -176,7 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v13</span>
+    <span class="build" id="build">build&nbsp;v14</span>
   </nav>
 
   <div class="hero">
@@ -519,7 +519,7 @@ async function publishToGoogle(){
   flashCmd("📧 Publishing…");
   try{
     await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(publishPayload())});
-    setStatus("✅ Sent! The Google Doc link will arrive in "+(email||"your inbox")+" within ~10 seconds.","var(--green)");
+    setStatus("📧 Sent to your backend — the Google Doc should reach "+(email||"your inbox")+" in ~15s. If it doesn't, open your /exec URL in a browser to see the exact error.","var(--blue)");
   }catch(err){ setStatus("Couldn't reach your Apps Script URL — check it's deployed as a Web App with access = Anyone.","var(--red)"); }
 }
 const pubBtn=$("#pub"); if(pubBtn) pubBtn.onclick=publishToGoogle;

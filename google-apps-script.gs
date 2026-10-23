@@ -22,10 +22,46 @@
 var GEMINI_API_KEY = '';                 // ← paste your free key from aistudio.google.com/apikey
 var GEMINI_MODEL   = 'gemini-2.0-flash'; // if this errors, try 'gemini-2.5-flash' or 'gemini-1.5-flash'
 
+// Open the /exec URL in your browser to run this self-test. It tells you exactly
+// what works and what fails — doc creation, email, and whether the Gemini key is set.
+function doGet(e) {
+  try {
+    var sample = {
+      title: 'Postmortem Pilot — TEST',
+      sev: 'SEV2',
+      email: Session.getEffectiveUser().getEmail(),
+      raw: "I can't SSH into the EC2 instance, the connection times out. " +
+           "Root cause is a security group that removed the port 22 rule. " +
+           "I re-added the inbound rule and it works again. " +
+           "We should add a guard so port 22 changes require review."
+    };
+    var usedGemini = !!GEMINI_API_KEY, gemOk = true, gemErr = '';
+    var s;
+    try { s = (GEMINI_API_KEY ? structureWithGemini(sample) : fallbackStructure(sample)); }
+    catch (err2) { gemOk = false; gemErr = String(err2); s = fallbackStructure(sample); }
+    var doc = buildDoc(s);
+    MailApp.sendEmail({ to: sample.email, subject: 'Postmortem Pilot — TEST',
+      htmlBody: 'Test doc: <a href="' + doc.getUrl() + '">' + doc.getUrl() + '</a>' });
+    return HtmlService.createHtmlOutput(
+      '<h2>✅ SUCCESS — email sent</h2>' +
+      '<p>Google Doc created: <a href="' + doc.getUrl() + '">' + doc.getUrl() + '</a></p>' +
+      '<p>Emailed to: <b>' + sample.email + '</b></p>' +
+      '<p>Gemini AI structuring: <b>' +
+        (!usedGemini ? 'OFF — key is empty (using built-in fallback, email still works)' :
+         gemOk ? 'ON ✅' : 'FAILED, used fallback ⚠️ — ' + gemErr) + '</b></p>');
+  } catch (err) {
+    return HtmlService.createHtmlOutput('<h2>❌ ERROR</h2><pre>' + String(err) + '</pre>' +
+      '<p>Most likely a bad Gemini API key or model name. Try GEMINI_MODEL = "gemini-2.5-flash" or "gemini-1.5-flash", or empty GEMINI_API_KEY to use the fallback.</p>');
+  }
+}
+
 function doPost(e) {
   try {
     var d = JSON.parse(e.postData.contents);
-    var s = (GEMINI_API_KEY ? structureWithGemini(d) : fallbackStructure(d));
+    // AI structuring is best-effort — if Gemini errors, we STILL build the doc and email it.
+    var s;
+    try { s = (GEMINI_API_KEY ? structureWithGemini(d) : fallbackStructure(d)); }
+    catch (gemErr) { s = fallbackStructure(d); }
     var doc = buildDoc(s);
     var url = doc.getUrl();
     var to = d.email || Session.getEffectiveUser().getEmail();
