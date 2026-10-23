@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Postmortem Pilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-d:#1557b0; --blue-bg:#e8f0fe;
+    --red:#d93025; --yellow:#f9ab00; --green:#188038; --amber:#e37400;
+    --ink:#202124; --grey700:#5f6368; --grey600:#80868b; --grey500:#9aa0a6;
+    --line:#dadce0; --line2:#e8eaed; --surface:#fff; --surface2:#f8f9fa; --surface3:#f1f3f4;
+    --sans:"Google Sans","Product Sans",Roboto,Arial,sans-serif;
+    --body:Roboto,Arial,sans-serif;
+    --mono:"Roboto Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,.sans{font-family:var(--sans)}
+
+  /* top bar */
+  .nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;height:64px;
+    padding:0 28px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .mark{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:18px;
+    background:var(--blue-bg)}
+  .nav .name{font-family:var(--sans);font-weight:500;font-size:19px;color:var(--grey700)}
+  .nav .name b{color:var(--ink);font-weight:500}
+  .nav .spacer{flex:1}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--grey700);display:flex;align-items:center;gap:8px}
+  .cdot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+  .wispr{display:flex;align-items:center;gap:8px;border:1px solid #c6dafc;background:var(--blue-bg);
+    color:var(--blue);font-family:var(--sans);font-weight:500;font-size:13.5px;padding:7px 16px;border-radius:24px}
+
+  .hero{max-width:1120px;margin:0 auto;padding:40px 28px 8px}
+  .hero h1{font-size:34px;font-weight:400;letter-spacing:-.3px;margin:0 0 8px}
+  .hero p{font-size:16px;color:var(--grey700);margin:0;max-width:620px}
+
+  .shell{max-width:1120px;margin:0 auto;padding:20px 28px 72px}
+
+  /* incident header */
+  .ihead{border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:22px;background:var(--surface)}
+  .titlerow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  #title{flex:1;min-width:240px;background:transparent;border:none;color:var(--ink);
+    font-family:var(--sans);font-size:22px;font-weight:500;padding:4px 0;border-bottom:2px solid transparent}
+  #title:focus{outline:none;border-bottom-color:var(--blue)}
+  #title::placeholder{color:var(--grey500)}
+  .sevpick{display:flex;gap:8px}
+  .sev{font-family:var(--sans);font-size:13px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;
+    border:1px solid var(--line);background:var(--surface);color:var(--grey700);transition:.12s}
+  .sev:hover{background:var(--surface3)}
+  .sev.s1[data-on="1"]{background:#fce8e6;border-color:#f5c6c2;color:var(--red)}
+  .sev.s2[data-on="1"]{background:#fef7e0;border-color:#fee9ad;color:var(--amber)}
+  .sev.s3[data-on="1"]{background:var(--blue-bg);border-color:#c6dafc;color:var(--blue)}
+  .istat{display:flex;gap:26px;margin-top:16px;flex-wrap:wrap;color:var(--grey700);font-size:13px}
+  .istat b{color:var(--ink);font-weight:500}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:3px 12px;border-radius:999px;
+    background:#e6f4ea;color:var(--green);font-family:var(--sans);font-weight:500;font-size:12px}
+  .chip .cdot{background:var(--green)}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:22px}
+  @media (max-width:920px){.grid{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+  .card:hover{box-shadow:0 1px 3px rgba(60,64,67,.12)}
+  .hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line2)}
+  .hd .n{width:26px;height:26px;border-radius:50%;background:var(--blue-bg);color:var(--blue);
+    display:grid;place-items:center;font-family:var(--sans);font-weight:500;font-size:13px}
+  .hd h2{font-family:var(--sans);font-size:16px;font-weight:500;margin:0}
+  .hd .meta{margin-left:auto;color:var(--grey600);font-size:13px;font-family:var(--mono)}
+  .bd{padding:20px}
+
+  /* capture */
+  #say{width:100%;min-height:108px;resize:vertical;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:14px 16px;color:var(--ink);font-size:15px;line-height:1.55;font-family:var(--body)}
+  #say:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+  #say::placeholder{color:var(--grey500)}
+  .actions{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap}
+  .btn{cursor:pointer;border-radius:24px;font-family:var(--sans);font-weight:500;font-size:14px;padding:9px 22px;transition:.14s;border:1px solid transparent}
+  .btn.primary{background:var(--blue);color:#fff}
+  .btn.primary:hover{background:var(--blue-d);box-shadow:0 1px 3px rgba(60,64,67,.25)}
+  .btn.text{background:transparent;color:var(--blue)}
+  .btn.text:hover{background:var(--blue-bg)}
+  .btn.ghost{background:var(--surface);border-color:var(--line);color:var(--grey700)}
+  .btn.ghost:hover{background:var(--surface3)}
+  .kbd{font-family:var(--mono);font-size:12px;opacity:.75;margin-left:6px}
+  .logged{margin-left:auto;color:var(--green);font-size:13px;font-family:var(--mono);opacity:0;transition:.2s}
+  .logged.show{opacity:1}
+  .wtip{margin-top:16px;color:var(--grey700);font-size:13px;padding:12px 14px;background:var(--surface2);
+    border-radius:10px;border:1px solid var(--line2)}
+  .wtip b{color:var(--ink);font-weight:500}
+
+  /* timeline */
+  .tl{list-style:none;margin:0;padding:2px 2px 2px 0;max-height:440px;overflow:auto}
+  .tl .empty{color:var(--grey500);text-align:center;padding:44px 10px;font-size:14px}
+  .tl li{position:relative;display:grid;grid-template-columns:58px 1fr;gap:14px;padding:3px 0}
+  .tl .time{font-family:var(--mono);font-size:11px;color:var(--grey600);text-align:right;padding-top:12px}
+  .rail{position:relative}
+  .marker{position:absolute;left:-1px;top:14px;width:12px;height:12px;border-radius:50%;
+    background:var(--grey500);box-shadow:0 0 0 3px var(--surface),0 0 0 4px var(--line)}
+  .tl li:not(:last-child) .marker::after{content:"";position:absolute;left:50%;top:12px;transform:translateX(-50%);
+    width:2px;height:calc(100% + 22px);background:var(--line)}
+  .ev{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px}
+  .ev .t{font-size:14px;color:var(--ink)}
+  .ev .ctl{display:flex;align-items:center;gap:9px;margin-top:9px}
+  .wrapsel{display:flex;align-items:center;gap:8px}
+  .segdot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .segsel{appearance:none;cursor:pointer;font-family:var(--sans);font-weight:500;font-size:12px;
+    padding:4px 26px 4px 12px;border-radius:16px;border:1px solid var(--line);background:var(--surface3);color:var(--grey700);
+    background-image:linear-gradient(45deg,transparent 50%,var(--grey600) 50%),linear-gradient(135deg,var(--grey600) 50%,transparent 50%);
+    background-position:calc(100% - 14px) 55%,calc(100% - 10px) 55%;background-size:4px 4px,4px 4px;background-repeat:no-repeat}
+  .delx{margin-left:auto;background:transparent;border:none;color:var(--grey500);cursor:pointer;font-size:15px;padding:3px 7px;border-radius:50%}
+  .delx:hover{color:var(--red);background:#fce8e6}
+  .b-impact{background:var(--red)}.b-cause{background:var(--yellow)}.b-fix{background:var(--green)}.b-prev{background:var(--blue)}.b-tl{background:var(--grey500)}
+  .m-impact{background:var(--red)}.m-cause{background:var(--yellow)}.m-fix{background:var(--green)}.m-prev{background:var(--blue)}.m-tl{background:var(--grey500)}
+
+  /* document */
+  .docbar{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+  .doc{padding:30px 36px;max-height:600px;overflow:auto}
+  .doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+  .doc .docmeta{display:flex;gap:18px;flex-wrap:wrap;color:var(--grey700);font-size:12.5px;
+    padding-bottom:18px;margin-bottom:20px;border-bottom:1px solid var(--line2);font-family:var(--mono)}
+  .doc h3{font-family:var(--sans);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--grey700);
+    margin:26px 0 10px;display:flex;align-items:center;gap:9px}
+  .doc h3 .sq{width:10px;height:10px;border-radius:3px}
+  .doc p.tldr{font-size:15px;color:var(--ink);background:var(--blue-bg);border-radius:10px;padding:14px 16px;margin:0}
+  .doc ul{margin:0;padding-left:20px}
+  .doc li{font-size:14px;margin:5px 0}
+  .doc .none{color:var(--grey500);font-style:italic;font-size:13px}
+  .doc table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  .doc td{padding:8px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+  .doc td.tm{font-family:var(--mono);color:var(--grey700);white-space:nowrap;width:1%}
+  .doc .foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--line2);color:var(--grey600);font-size:12.5px}
+  .placeholder{color:var(--grey500);padding:56px 30px;text-align:center;font-size:15px}
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="mark">🎙️</div>
+    <div class="name"><b>Postmortem</b> Pilot</div>
+    <div class="spacer"></div>
+    <div class="wispr">🎙️ Dictate with <b>Wispr&nbsp;Flow</b></div>
+    <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
+  </nav>
+
+  <div class="hero">
+    <h1>Talk your incident into an RCA.</h1>
+    <p>When production breaks, your hands are busy fixing it. Just speak — Postmortem Pilot builds the timeline and assembles the postmortem for you.</p>
+  </div>
+
+  <div class="shell">
+    <div class="ihead">
+      <div class="titlerow">
+        <input id="title" placeholder="Name this incident…" />
+        <div class="sevpick" id="sevpick">
+          <div class="sev s1" data-sev="SEV1">SEV1</div>
+          <div class="sev s2" data-sev="SEV2" data-on="1">SEV2</div>
+          <div class="sev s3" data-sev="SEV3">SEV3</div>
+        </div>
+      </div>
+      <div class="istat">
+        <span>Status <span class="chip"><span class="cdot"></span>Resolved</span></span>
+        <span>Window <b id="win">—</b></span>
+        <span>Entries <b id="ecount">0</b></span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="hd"><div class="n">1</div><h2>Capture — hands-free</h2></div>
+        <div class="bd">
+          <textarea id="say" placeholder="Dictate a line with Wispr Flow, then press Enter&#10;e.g. “10:42, checkout started returning 504s, users can’t pay”"></textarea>
+          <div class="actions">
+            <button class="btn primary" id="add">Add to timeline<span class="kbd">⏎</span></button>
+            <button class="btn ghost" id="paste">📋 Add from clipboard</button>
+            <button class="btn text" id="seed">Load sample</button>
+            <button class="btn text" id="clear">Clear</button>
+            <span class="logged" id="logged">✓ logged</span>
+          </div>
+          <div class="wtip"><b>How to use:</b> click into the box above, hold your <b>Wispr Flow</b> hotkey, and speak one line — Wispr types it in, then press <b>Enter</b>. Every line you dictate is timestamped and auto-sorted into the right section. 100% hands-free, powered by Wispr Flow.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><div class="n">2</div><h2>Live timeline</h2><span class="meta" id="tlmeta"></span></div>
+        <div class="bd" style="padding-top:14px">
+          <ul class="tl" id="tl"><li class="empty">Dictate your first line — it drops in here in real time.</li></ul>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <div class="docbar">
+          <div class="n" style="width:26px;height:26px;border-radius:50%;background:var(--blue-bg);color:var(--blue);display:grid;place-items:center;font-family:var(--sans);font-weight:500;font-size:13px">3</div>
+          <h2 style="font-family:var(--sans);font-size:16px;font-weight:500;margin:0">Postmortem document</h2>
+          <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn primary" id="gen">Generate</button>
+            <button class="btn ghost" id="copy">Copy Markdown</button>
+            <button class="btn ghost" id="dl">Download .md</button>
+          </div>
+        </div>
+        <div class="doc" id="doc"><div class="placeholder">Add a few lines, then hit <b>Generate</b> to assemble the RCA — ready to paste into Jira or Confluence.</div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const SEGS=["timeline","impact","root cause","fix","prevention"];
+const CLS={"timeline":"tl","impact":"impact","root cause":"cause","fix":"fix","prevention":"prev"};
+const RULES=[
+  {s:"impact",re:/\b(504|500|5\d\d|outage|down|degraded|timeout|timing out|errors?|failing|affected|users?|customers?|checkout|revenue|unavailable)\b/i},
+  {s:"root cause",re:/\b(because|caused by|due to|root cause|slow query|unindexed|memory leak|oom|deadlock|bad deploy|regression|misconfig|rate limit|exhaust|race condition)\b/i},
+  {s:"fix",re:/\b(fixed|rolled? back|rollback|restart|killed|scaled|patched|resolved|mitigated|recovered|restored|failover|reverted)\b/i},
+  {s:"prevention",re:/\b(prevent|add (an? )?alert|add (an? )?index|monitoring|follow[- ]?up|action item|going forward|we should|add a test|runbook|guard|todo)\b/i},
+];
+const classify=t=>(RULES.find(r=>r.re.test(t))||{s:"timeline"}).s;
+
+// Always start with a clean, empty slate — nothing is pre-filled or restored.
+// The title and every timeline entry appear only when you dictate them.
+let events=[],sev="SEV2";
+const $=s=>document.querySelector(s);
+const title=$("#title");
+
+const pad=n=>String(n).padStart(2,"0");
+const now=()=>{const d=new Date();return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())};
+setInterval(()=>{$("#clock").textContent=now()},1000);$("#clock").textContent=now();
+
+function save(){localStorage.setItem("pp3_e",JSON.stringify(events));
+  localStorage.setItem("pp3_m",JSON.stringify({title:title.value,sev}))}
+function setSev(v){sev=v;document.querySelectorAll(".sev").forEach(el=>el.removeAttribute("data-on"));
+  document.querySelector(`.sev[data-sev="${v}"]`).setAttribute("data-on","1");save()}
+$("#sevpick").addEventListener("click",e=>{const s=e.target.closest(".sev");if(s)setSev(s.dataset.sev)});
+setSev(sev);
+
+function renderTL(){
+  const tl=$("#tl");
+  $("#ecount").textContent=events.length;
+  $("#tlmeta").textContent=events.length?events.length+" entries":"";
+  $("#win").textContent=events.length>=2?events[0].ts+" → "+events[events.length-1].ts:"—";
+  if(!events.length){tl.innerHTML='<li class="empty">Dictate your first line — it drops in here in real time.</li>';return}
+  tl.innerHTML="";
+  events.forEach((e,i)=>{
+    const c=CLS[e.seg];
+    const li=document.createElement("li");
+    li.innerHTML=`<div class="rail"><div class="time">${e.ts}</div><span class="marker m-${c}"></span></div>
+      <div class="ev"><div class="t"></div>
+        <div class="ctl"><span class="wrapsel"><span class="segdot b-${c}"></span>
+          <select class="segsel" data-i="${i}">${SEGS.map(s=>`<option ${s===e.seg?"selected":""}>${s}</option>`).join("")}</select>
+        </span><button class="delx" data-del="${i}">✕</button></div>
+      </div>`;
+    li.querySelector(".t").textContent=e.text;
+    tl.appendChild(li);
+  });
+  tl.scrollTop=tl.scrollHeight;
+}
+function flash(){const l=$("#logged");l.textContent="✓ logged "+now();l.classList.add("show");setTimeout(()=>l.classList.remove("show"),1600)}
+function add(text){text=(text||"").trim();if(!text)return;events.push({ts:now(),text,seg:classify(text)});save();renderTL();flash()}
+
+$("#add").onclick=()=>{add($("#say").value);$("#say").value="";$("#say").focus()};
+$("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#add").click()}});
+$("#tl").addEventListener("change",e=>{const s=e.target.closest("select[data-i]");if(!s)return;events[+s.dataset.i].seg=s.value;save();renderTL()});
+$("#tl").addEventListener("click",e=>{const b=e.target.closest("button[data-del]");if(!b)return;events.splice(+b.dataset.del,1);save();renderTL()});
+title.addEventListener("input",save);
+$("#clear").onclick=()=>{if(confirm("Clear the whole timeline?")){events=[];save();renderTL();$("#doc").innerHTML='<div class="placeholder">Add a few lines, then hit <b>Generate</b>.</div>'}};
+$("#seed").onclick=()=>{
+  title.value="SportsBull checkout returning 504s";setSev("SEV2");
+  events=[
+    {ts:"10:42:05",text:"Checkout started returning 504s — users can’t complete payments",seg:"impact"},
+    {ts:"10:45:20",text:"Aurora primary CPU pinned at 95 percent",seg:"timeline"},
+    {ts:"10:48:11",text:"Root cause: an unindexed query from the new leaderboard feature hammering the DB",seg:"root cause"},
+    {ts:"10:52:40",text:"Killed the runaway query and rolled back the leaderboard deploy",seg:"fix"},
+    {ts:"10:55:02",text:"Latency normal, checkout success rate recovered to 100 percent",seg:"timeline"},
+    {ts:"10:58:30",text:"Follow-up: add an index and a slow-query alert before re-shipping",seg:"prevention"},
+  ];save();renderTL();gen()};
+
+function data(){
+  const by=s=>events.filter(e=>e.seg===s);
+  const imp=by("impact"),rc=by("root cause"),fx=by("fix"),pv=by("prevention");
+  const tldr=`${sev} — ${(title.value.trim()||"Untitled incident")}. `+(imp[0]?imp[0].text+". ":"")+(fx[0]?"Resolved by "+fx[0].text.replace(/^./,c=>c.toLowerCase())+".":"Resolution pending.");
+  return{title:title.value.trim()||"Untitled incident",sev,win:events.length>=2?events[0].ts+" → "+events[events.length-1].ts:"—",tldr,imp,rc,fx,pv};
+}
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const ul=arr=>arr.length?`<ul>${arr.map(e=>`<li>${esc(e.text)}</li>`).join("")}</ul>`:'<div class="none">— nothing captured yet</div>';
+function gen(){
+  if(!events.length){$("#doc").innerHTML='<div class="placeholder">Add a few lines, then hit <b>Generate</b>.</div>';return}
+  const d=data();
+  $("#doc").innerHTML=`<h1>${esc(d.title)}</h1>
+    <div class="docmeta"><span>${d.sev}</span><span>${d.win}</span><span>Status: Resolved</span></div>
+    <h3><span class="sq" style="background:var(--blue)"></span>TL;DR</h3><p class="tldr">${esc(d.tldr)}</p>
+    <h3><span class="sq b-impact"></span>Impact</h3>${ul(d.imp)}
+    <h3><span class="sq b-tl"></span>Timeline</h3>
+    <table><tbody>${events.map(e=>`<tr><td class="tm">${e.ts}</td><td>${esc(e.text)}</td></tr>`).join("")}</tbody></table>
+    <h3><span class="sq b-cause"></span>Root cause</h3>${ul(d.rc)}
+    <h3><span class="sq b-fix"></span>Fix / mitigation</h3>${ul(d.fx)}
+    <h3><span class="sq b-prev"></span>Prevention / action items</h3>${ul(d.pv)}
+    <div class="foot">Captured hands-free with Postmortem Pilot · ${events.length} entries</div>`;
+}
+function markdown(){
+  const d=data();const b=a=>a.length?a.map(e=>"- "+e.text).join("\n"):"- _(none)_";
+  return `# Postmortem — ${d.title}\n\n**Severity:** ${d.sev}  |  **Window:** ${d.win}  |  **Status:** Resolved\n\n## TL;DR\n${d.tldr}\n\n## Impact\n${b(d.imp)}\n\n## Timeline\n| Time | Event |\n|------|-------|\n${events.map(e=>`| ${e.ts} | ${e.text} |`).join("\n")}\n\n## Root cause\n${b(d.rc)}\n\n## Fix / mitigation\n${b(d.fx)}\n\n## Prevention / action items\n${b(d.pv)}\n\n---\n_Captured hands-free with Postmortem Pilot._`;
+}
+$("#gen").onclick=gen;
+$("#copy").onclick=async()=>{try{await navigator.clipboard.writeText(markdown());$("#copy").textContent="Copied ✓";setTimeout(()=>$("#copy").textContent="Copy Markdown",1400)}catch(e){alert("Copy failed — select manually.")}};
+$("#dl").onclick=()=>{const blob=new Blob([markdown()],{type:"text/markdown"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.value.trim()||"postmortem").replace(/\s+/g,"-").toLowerCase()+".md";a.click()};
+
+renderTL();if(events.length)gen();
+</script>
+</body>
+</html>

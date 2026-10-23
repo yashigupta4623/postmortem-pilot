@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Demo Teleprompter — Postmortem Pilot</title>
+<style>
+  :root{--bg:#0b0d12;--card:#151924;--line:#2a3042;--text:#f2f4fa;--muted:#9aa0b8;--blue:#4f8cff;--green:#36d399;--amber:#ffbf47}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 20px}
+  h1{font-size:18px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px;text-align:center}
+  .progress{display:flex;gap:6px;margin-bottom:20px}
+  .pdot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+  .pdot.done{background:var(--green)}.pdot.now{background:var(--blue);transform:scale(1.4)}
+  .stage{width:min(760px,100%);background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:38px 34px;min-height:300px;display:flex;flex-direction:column;justify-content:center}
+  .tag{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);font-weight:700;margin-bottom:14px}
+  .say{font-size:30px;line-height:1.35;font-weight:600;letter-spacing:-.01em}
+  .say .dict{color:var(--amber)}
+  .do{margin-top:22px;font-size:16px;color:var(--muted);display:flex;align-items:center;gap:10px}
+  .do b{color:var(--text)}
+  .key{background:#222838;border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+  .counter{color:var(--muted);font-size:13px;margin-top:18px}
+  .nav{display:flex;gap:12px;margin-top:20px}
+  button{cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--text);
+    font-size:15px;font-weight:600;padding:11px 22px;border-radius:12px}
+  button.primary{background:var(--blue);border-color:transparent}
+  button:disabled{opacity:.4;cursor:default}
+  .hint{margin-top:16px;color:var(--muted);font-size:12.5px;text-align:center}
+  .kbd2{font-family:ui-monospace,Menlo,monospace;background:#222838;border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .done-screen{text-align:center}
+  .done-screen .big{font-size:40px;margin-bottom:10px}
+</style>
+</head>
+<body>
+  <h1>🎬 Demo Teleprompter</h1>
+  <div class="sub">Read the <b style="color:var(--text)">white</b> line out loud. Speak the <b style="color:var(--amber)">orange</b> part through Wispr Flow into the tool. Press <span class="kbd2">→</span> or Space for the next line.</div>
+  <div class="progress" id="progress"></div>
+  <div class="stage" id="stage"></div>
+  <div class="counter" id="counter"></div>
+  <div class="nav">
+    <button id="prev">← Back</button>
+    <button class="primary" id="next">Next →</button>
+  </div>
+  <div class="hint">Tip: open this on your phone or a second screen, and record your Chrome window. Keep your hands off the keyboard while you speak.</div>
+
+<script>
+const steps=[
+  {tag:"① Before you start", say:"Open the tool in Chrome and click <span class='dict' style='color:#fff'>Clear</span>. Start Shift+Cmd+5 → turn Microphone ON → Record Selected Portion → Record.", doText:"Then press Next and begin talking."},
+  {tag:"② Hook", say:"“When production breaks, my hands are busy fixing it — not writing notes. Postmortem Pilot lets me just talk.”", doText:"Just say it to camera. No clicking."},
+  {tag:"③ Line 1 — dictate", say:"<span class='dict'>“Checkout started returning 504s, users can’t pay.”</span>", doText:"Dictate with Wispr → then press <b>Enter</b>"},
+  {tag:"④ Line 2 — dictate", say:"<span class='dict'>“Aurora CPU pinned at 95 percent.”</span>", doText:"Dictate → press <b>Enter</b>"},
+  {tag:"⑤ Line 3 — dictate", say:"<span class='dict'>“Root cause — an unindexed query from the new leaderboard feature.”</span>", doText:"Dictate → press <b>Enter</b>"},
+  {tag:"⑥ Line 4 — dictate", say:"<span class='dict'>“Killed the query and rolled back the deploy.”</span>", doText:"Dictate → press <b>Enter</b>"},
+  {tag:"⑦ Line 5 — dictate", say:"<span class='dict'>“Latency back to normal, checkout recovered.”</span>", doText:"Dictate → press <b>Enter</b>"},
+  {tag:"⑧ Show the timeline", say:"“Watch — the timeline built itself as I spoke. Timestamped, color-coded, no typing.”", doText:"Point your cursor at the timeline."},
+  {tag:"⑨ Generate", say:"“Now I generate the postmortem.”", doText:"Click the <b>Generate</b> button"},
+  {tag:"⑩ The payoff", say:"“TL;DR, impact, timeline, root cause, fix, prevention — ready to paste straight into Jira.”", doText:"Click <b>Copy Markdown</b>"},
+  {tag:"⑪ Close", say:"“I built this whole tool by voice with Wispr Flow. No hands, start to finish.”", doText:"Then stop recording: ⏹ in the top menu bar."},
+];
+let i=0;
+const stage=document.getElementById("stage"),counter=document.getElementById("counter"),
+      prog=document.getElementById("progress");
+steps.forEach(()=>{const d=document.createElement("div");d.className="pdot";prog.appendChild(d)});
+const dots=[...prog.children];
+function render(){
+  if(i>=steps.length){
+    stage.innerHTML=`<div class='done-screen'><div class='big'>✅</div><div class='say'>That’s a wrap!</div>
+      <div class='do' style='justify-content:center'>Stop the recording, then check it’s under 2:00.</div></div>`;
+    counter.textContent="";dots.forEach(d=>{d.className="pdot done"});
+    document.getElementById("next").disabled=true;document.getElementById("prev").disabled=false;return;
+  }
+  const s=steps[i];
+  stage.innerHTML=`<div class='tag'>${s.tag}</div><div class='say'>${s.say}</div><div class='do'>👉 ${s.doText}</div>`;
+  counter.textContent=`Step ${i+1} of ${steps.length}`;
+  dots.forEach((d,k)=>{d.className="pdot"+(k<i?" done":k===i?" now":"")});
+  document.getElementById("prev").disabled=i===0;document.getElementById("next").disabled=false;
+}
+document.getElementById("next").onclick=()=>{if(i<steps.length){i++;render()}};
+document.getElementById("prev").onclick=()=>{if(i>0){i--;render()}};
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowRight"||e.key===" "){e.preventDefault();if(i<steps.length){i++;render()}}
+  if(e.key==="ArrowLeft"){e.preventDefault();if(i>0){i--;render()}}
+});
+render();
+</script>
+</body>
+</html>
