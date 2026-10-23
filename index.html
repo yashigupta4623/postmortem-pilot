@@ -179,7 +179,7 @@
             <button class="btn text" id="clear">Clear</button>
             <span class="logged" id="logged">✓ logged</span>
           </div>
-          <div class="wtip"><b>How to use:</b> click into the box above, hold your <b>Wispr Flow</b> hotkey, and speak one line — Wispr types it in, then press <b>Enter</b>. Every line you dictate is timestamped and auto-sorted into the right section. 100% hands-free, powered by Wispr Flow.</div>
+          <div class="wtip"><b>How to use:</b> dictate a line with <b>Wispr Flow</b>. If it types into the box, press <b>Enter</b>. If Wispr shows a <b>Copy</b> button instead, tap Copy → then press <b>Cmd+V</b> here (or click <b>📋 Add from clipboard</b>) and the line is added automatically. Every line is timestamped and auto-sorted. Hands-free, powered by Wispr Flow.</div>
         </div>
       </div>
 
@@ -259,6 +259,18 @@ function add(text){text=(text||"").trim();if(!text)return;events.push({ts:now(),
 
 $("#add").onclick=()=>{add($("#say").value);$("#say").value="";$("#say").focus()};
 $("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#add").click()}});
+// Pasting a dictated line (Cmd+V) auto-adds it — works even when Wispr can't type directly into the box.
+$("#say").addEventListener("paste",e=>{
+  const t=((e.clipboardData||window.clipboardData).getData("text")||"").trim();
+  if(t){e.preventDefault();t.split(/\r?\n/).forEach(add);$("#say").value=""}
+});
+// One-click: read whatever Wispr just copied and drop it into the timeline.
+$("#paste").onclick=async()=>{
+  try{const t=((await navigator.clipboard.readText())||"").trim();
+    if(t){t.split(/\r?\n/).forEach(add)}
+    else{alert("Clipboard is empty — dictate with Wispr Flow and tap Copy first.")}}
+  catch(err){alert("Click inside the box and press Cmd+V instead.")}
+};
 $("#tl").addEventListener("change",e=>{const s=e.target.closest("select[data-i]");if(!s)return;events[+s.dataset.i].seg=s.value;save();renderTL()});
 $("#tl").addEventListener("click",e=>{const b=e.target.closest("button[data-del]");if(!b)return;events.splice(+b.dataset.del,1);save();renderTL()});
 title.addEventListener("input",save);
