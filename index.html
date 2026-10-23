@@ -176,7 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v9</span>
+    <span class="build" id="build">build&nbsp;v10</span>
   </nav>
 
   <div class="hero">
@@ -213,7 +213,7 @@
             <button class="round go" id="add" type="button" title="Log it">➜</button>
           </div>
           <div class="interim" id="interim"></div>
-          <p class="keyhint"><b>Keep talking — no chunking.</b> Press <kbd style="font-family:var(--mono);background:var(--surface3);border:1px solid var(--line);border-radius:5px;padding:1px 6px">⌘/Ctrl + M</kbd> (or click <b>🎤</b>) to start, then narrate your whole debugging out loud — I split it into steps automatically on each pause and build the report live. Press the key again to stop; say “<b>publish</b>” to email it.</p>
+          <p class="keyhint"><b>Speak one short thought, then pause.</b> Press <kbd style="font-family:var(--mono);background:var(--surface3);border:1px solid var(--line);border-radius:5px;padding:1px 6px">⌘/Ctrl + M</kbd> (or click <b>🎤</b>) to start. Each <b>pause</b> = one step on the timeline. Commands work the same way — say “<b>mark that as fix</b>”, “<b>generate the postmortem</b>”, or “<b>publish</b>” as their <b>own</b> short phrase (pause before each). The report builds live.</p>
           <div class="chipwrap">
             <span class="chlabel">Try saying</span>
             <button class="chip" data-say="The EC2 instance is unreachable and SSH connection times out">“EC2 unreachable, SSH times out”</button>
@@ -432,7 +432,13 @@ function handleFinal(raw){
   raw=(raw||"").trim(); if(!raw) return;
   // TITLE — match on the RAW text so "EC2" keeps its casing.
   const t=raw.match(/^\s*(?:the\s+)?title\s*(?:is)?\s*[:\-–]?\s*(.+?)[.\s]*$/i);
-  if(t){ title.value=cap(t[1].trim()); save(); flashCmd("📝 Title set"); return; }
+  if(t){
+    const tt=t[1].trim();
+    // Only a SHORT single phrase is a title — a long run-on monologue is narration, not a title.
+    if(tt && tt.split(/\s+/).length<=12 && !/[.?!]\s+\S/.test(t[1])){
+      title.value=cap(tt); save(); flashCmd("📝 Title set"); return;
+    }
+  }
   // Split chained commands: "generate the postmortem, then publish" → two commands.
   const clauses=normalize(raw.replace(/,/g," then ")).split(/\b(?:and then|then)\b/).map(c=>c.trim()).filter(Boolean);
   const actions=[];
