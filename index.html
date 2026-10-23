@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>Postmortem Pilot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,6 +37,7 @@
   .cdot{width:8px;height:8px;border-radius:50%;background:var(--green)}
   .wispr{display:flex;align-items:center;gap:8px;border:1px solid #c6dafc;background:var(--blue-bg);
     color:var(--blue);font-family:var(--sans);font-weight:500;font-size:13.5px;padding:7px 16px;border-radius:24px}
+  .build{font-family:var(--mono);font-size:11px;color:var(--grey500);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
 
   .hero{max-width:1120px;margin:0 auto;padding:40px 28px 8px}
   .hero h1{font-size:34px;font-weight:400;letter-spacing:-.3px;margin:0 0 8px}
@@ -172,6 +176,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
+    <span class="build" id="build">build&nbsp;v8</span>
   </nav>
 
   <div class="hero">
