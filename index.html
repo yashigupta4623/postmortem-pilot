@@ -202,7 +202,7 @@
         <div class="bd">
           <div class="cmdrow">
             <span class="wave" id="wave"><i></i><i></i><i></i><i></i></span>
-            <input id="say" type="text" spellcheck="false" autocomplete="off"
+            <input id="say" type="text" spellcheck="false" autocomplete="off" autofocus
                    placeholder="Press your Wispr Flow key and speak — or type…">
             <button class="round" id="micmini" type="button" title="No Wispr? Use the browser mic">🎤</button>
             <button class="round go" id="add" type="button" title="Log it">➜</button>
@@ -320,9 +320,13 @@ $("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.prev
 const say=$("#say");
 let autoTimer=null;
 say.focus();                                  // ready the moment the page loads
-document.addEventListener("click",e=>{        // clicking empty space re-arms the box
-  if(!e.target.closest("button,select,input,textarea,a")) say.focus();
+document.addEventListener("click",e=>{        // clicking anywhere re-arms the box for your Wispr key
+  if(!e.target.closest("button,select,a")) say.focus();
 });
+window.addEventListener("focus",()=>{ if(!window.__micOn) say.focus(); });               // tab regains focus → re-arm
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden && !window.__micOn) say.focus(); });
+setInterval(()=>{ if(!window.__micOn && document.hasFocus() && document.activeElement!==say
+   && !/^(BUTTON|SELECT|A)$/.test((document.activeElement||{}).tagName||"")) say.focus(); }, 1500); // keep it armed
 say.addEventListener("input",e=>{             // Wispr inserts a whole phrase (a "burst") → process it by itself
   clearTimeout(autoTimer);
   const burst = e.inputType==="insertFromPaste" || e.inputType==="insertReplacementText" || (e.data && e.data.length>2);
@@ -420,8 +424,8 @@ function handleFinal(text){
   add(t);
 }
 
-function startMic(){listening=true;micBtn.classList.add("live");wave.classList.add("on");interim.textContent="🎙️ listening…";try{rec.start()}catch(e){}}
-function stopMic(){listening=false;micBtn.classList.remove("live");wave.classList.remove("on");interim.textContent="";try{rec.stop()}catch(e){}}
+function startMic(){listening=true;window.__micOn=true;micBtn.classList.add("live");wave.classList.add("on");interim.textContent="🎙️ listening…";try{rec.start()}catch(e){}}
+function stopMic(){listening=false;window.__micOn=false;micBtn.classList.remove("live");wave.classList.remove("on");interim.textContent="";try{rec.stop()}catch(e){};say.focus();}
 if(!SR){micBtn.disabled=true;micBtn.title="Browser mic needs Chrome";}
 else{
   rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang="en-IN";
