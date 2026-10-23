@@ -191,19 +191,20 @@
         <div class="bd">
           <button class="micbig" id="mic">
             <span class="micwave"><i></i><i></i><i></i><i></i><i></i></span>
-            <span id="micTxt">Start dictating</span>
+            <span id="micTxt">Start incident — just speak</span>
           </button>
           <div class="interim" id="interim"></div>
-          <div class="ortype">— or type / paste a line —</div>
-          <textarea id="say" placeholder="Type a line (or paste a Wispr dictation), then press Enter"></textarea>
+          <div class="ortype">— or type a line as a fallback —</div>
+          <textarea id="say" placeholder="Type a line, then press Enter (only needed if you’re not speaking)"></textarea>
           <div class="actions">
             <button class="btn primary" id="add">Add to timeline<span class="kbd">⏎</span></button>
-            <button class="btn ghost" id="paste">📋 Paste from clipboard</button>
             <button class="btn text" id="seed">Load sample</button>
             <button class="btn text" id="clear">Clear</button>
             <span class="logged" id="logged">✓ logged</span>
           </div>
-          <div class="wtip"><b>Two hands-free ways to capture:</b> ① Click <b>Start dictating</b> and just talk — each sentence drops into the timeline automatically. ② Or dictate with <b>Wispr Flow</b> → Copy → paste here. Tip: build the whole tool by voice with Wispr to grow your usage card.</div>
+          <div class="wtip"><b>Fully hands-free.</b> Click <b>Start incident</b> and narrate as you debug — every sentence is logged and <b>auto-tagged</b> (impact / root cause / fix / prevention). Then just <b>say a command</b>:<br>
+          · “<b>generate the postmortem</b>” → builds the doc &nbsp;·&nbsp; “<b>publish</b>” → exports a Google Doc<br>
+          · “<b>mark that as root cause</b>” → retags the last line &nbsp;·&nbsp; “<b>title is …</b>” → names the incident</div>
         </div>
       </div>
 
@@ -220,6 +221,7 @@
           <h2 style="font-family:var(--sans);font-size:16px;font-weight:500;margin:0">Postmortem document</h2>
           <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn primary" id="gen">Generate</button>
+            <button class="btn ghost" id="pub">📄 Export Google Doc</button>
             <button class="btn ghost" id="copy">Copy Markdown</button>
             <button class="btn ghost" id="dl">Download .md</button>
           </div>
@@ -281,7 +283,7 @@ function renderTL(){
 function flash(){const l=$("#logged");l.textContent="✓ logged "+now();l.classList.add("show");setTimeout(()=>l.classList.remove("show"),1600)}
 function add(text){text=(text||"").trim();if(!text)return;events.push({ts:now(),text,seg:classify(text)});save();renderTL();flash()}
 
-$("#add").onclick=()=>{add($("#say").value);$("#say").value="";$("#say").focus()};
+$("#add").onclick=()=>{const v=$("#say").value;$("#say").value="";handleFinal(v);$("#say").focus()};
 $("#say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#add").click()}});
 
 /* ---------- Wispr Flow loop: box stays focused, lines auto-add on pause ----------
@@ -293,23 +295,25 @@ say.focus();                                  // ready the moment the page loads
 document.addEventListener("click",e=>{        // clicking empty space re-arms the box
   if(!e.target.closest("button,select,input,textarea,a")) say.focus();
 });
-say.addEventListener("input",()=>{            // Wispr just inserted text → log it after a short pause
+say.addEventListener("input",e=>{             // Wispr inserts a whole phrase (a "burst") → process it by itself
   clearTimeout(autoTimer);
+  const burst = e.inputType==="insertFromPaste" || e.inputType==="insertReplacementText" || (e.data && e.data.length>2);
+  const delay = burst ? 900 : 1700;           // dictation fires fast; slow hand-typing waits longer
   autoTimer=setTimeout(()=>{
     const v=say.value.trim();
-    if(v){ v.split(/\r?\n/).forEach(add); say.value=""; say.focus(); }
-  },1300);
+    if(v){ say.value=""; handleFinal(v); say.focus(); }
+  }, delay);
 });
 // Pasting a dictated line (Cmd+V) auto-adds it — works even when Wispr can't type directly into the box.
 $("#say").addEventListener("paste",e=>{
   const t=((e.clipboardData||window.clipboardData).getData("text")||"").trim();
   if(t){e.preventDefault();t.split(/\r?\n/).forEach(add);$("#say").value=""}
 });
-// One-click: read whatever Wispr just copied and drop it into the timeline.
-$("#paste").onclick=async()=>{
+// Optional: paste from clipboard (button may be absent).
+const pasteBtn=$("#paste");
+if(pasteBtn) pasteBtn.onclick=async()=>{
   try{const t=((await navigator.clipboard.readText())||"").trim();
-    if(t){t.split(/\r?\n/).forEach(add)}
-    else{alert("Clipboard is empty — dictate with Wispr Flow and tap Copy first.")}}
+    if(t){t.split(/\r?\n/).forEach(add)} else{alert("Clipboard is empty.")}}
   catch(err){alert("Click inside the box and press Cmd+V instead.")}
 };
 $("#tl").addEventListener("change",e=>{const s=e.target.closest("select[data-i]");if(!s)return;events[+s.dataset.i].seg=s.value;save();renderTL()});
@@ -357,23 +361,47 @@ $("#gen").onclick=gen;
 $("#copy").onclick=async()=>{try{await navigator.clipboard.writeText(markdown());$("#copy").textContent="Copied ✓";setTimeout(()=>$("#copy").textContent="Copy Markdown",1400)}catch(e){alert("Copy failed — select manually.")}};
 $("#dl").onclick=()=>{const blob=new Blob([markdown()],{type:"text/markdown"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(title.value.trim()||"postmortem").replace(/\s+/g,"-").toLowerCase()+".md";a.click()};
 
-/* ---------- In-app voice: the browser's own speech engine ----------
-   Reliable in Chrome, no Wispr-into-webpage dependency. Click, talk, lines appear. */
+/* ---------- Voice: narrate continuously, voice commands drive everything ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const micBtn=$("#mic"),micTxt=$("#micTxt"),interim=$("#interim");
 let rec=null,listening=false;
-function startMic(){listening=true;micBtn.classList.add("live");micTxt.textContent="Listening… click to stop";try{rec.start()}catch(e){}}
-function stopMic(){listening=false;micBtn.classList.remove("live");micTxt.textContent="Start dictating";interim.textContent="";try{rec.stop()}catch(e){}}
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+function flashCmd(msg){interim.textContent=msg;interim.style.color="var(--blue)";interim.style.fontStyle="normal";
+  setTimeout(()=>{interim.style.color="";interim.style.fontStyle="";interim.textContent=""},1700);}
+
+// Every finished phrase — from the mic OR from Wispr typing into the box — lands here.
+function handleFinal(text){
+  const t=text.trim(); if(!t) return;
+  const low=t.toLowerCase().replace(/[.!?,]+$/,"").trim();
+  // voice command — GENERATE the postmortem
+  if((/\b(generate|create|build|assemble|make|prepare)\b/.test(low) && /\b(postmortem|post ?mortem|rca|report|doc(ument)?|summary)\b/.test(low))
+     || /^(wrap (it|this) up|wrap up|finish up|that'?s it|i'?m done|all done)$/.test(low)){
+    gen(); flashCmd("📄 Generating postmortem…"); return;
+  }
+  // voice command — PUBLISH / EXPORT as a Google Doc
+  if(/^(publish|export|save)\b/.test(low) && !/\btimeline\b/.test(low)){ exportDoc(); flashCmd("📄 Exporting Google Doc…"); return; }
+  // voice command — SET the incident title
+  let m=low.match(/^(?:incident (?:title|name)|title|name this(?: incident)?|call this(?: incident)?)\s+(?:is\s+|as\s+)?(.+)/);
+  if(m){ title.value=cap(m[1]); save(); flashCmd("📝 Title set"); return; }
+  // voice command — RE-TAG the last line
+  m=low.match(/^mark (?:that|this|it|the last(?: one| line)?) as (?:an? |the )?(impact|root cause|fix|prevention|timeline)/);
+  if(m && events.length){ events[events.length-1].seg=m[1]; save(); renderTL(); flashCmd("🏷️ Re-tagged as "+m[1]); return; }
+  // otherwise — it's incident narration → log it, auto-tagged
+  add(t);
+}
+
+function startMic(){listening=true;micBtn.classList.add("live");micTxt.textContent="Listening — narrate your incident (click to stop)";try{rec.start()}catch(e){}}
+function stopMic(){listening=false;micBtn.classList.remove("live");micTxt.textContent="Start incident — just speak";interim.textContent="";try{rec.stop()}catch(e){}}
 if(!SR){micBtn.disabled=true;micTxt.textContent="Voice needs Chrome / Edge";}
 else{
-  rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang="en-US";
+  rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang="en-IN";
   rec.onresult=e=>{
     let live="";
     for(let i=e.resultIndex;i<e.results.length;i++){
       const r=e.results[i];
-      if(r.isFinal) add(r[0].transcript); else live+=r[0].transcript;
+      if(r.isFinal) handleFinal(r[0].transcript); else live+=r[0].transcript;
     }
-    interim.textContent=live;
+    if(live) interim.textContent="🎙️ "+live;
   };
   rec.onend=()=>{if(listening){try{rec.start()}catch(e){}}};
   rec.onerror=ev=>{
@@ -383,6 +411,18 @@ else{
   };
   micBtn.onclick=()=>{ listening ? stopMic() : startMic(); };
 }
+
+// Export the finished RCA as a .doc — opens natively in Google Docs and Word.
+function exportDoc(){
+  gen();
+  const body=document.querySelector("#doc").innerHTML;
+  const html=`<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset="utf-8"></head><body style="font-family:Arial,Helvetica,sans-serif;color:#202124;line-height:1.5">${body}</body></html>`;
+  const blob=new Blob(['﻿'+html],{type:"application/msword"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=(title.value.trim()||"postmortem").replace(/\s+/g,"-").toLowerCase()+".doc";
+  document.body.appendChild(a);a.click();a.remove();
+}
+const pubBtn=$("#pub"); if(pubBtn) pubBtn.onclick=exportDoc;
 
 renderTL();if(events.length)gen();
 </script>
