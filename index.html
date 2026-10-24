@@ -124,7 +124,8 @@
 
   /* timeline */
   .tl{list-style:none;margin:0;padding:2px 2px 2px 0;max-height:440px;overflow:auto}
-  .tl .empty{color:var(--grey500);text-align:center;padding:44px 10px;font-size:14px}
+  .tl .empty{display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--grey500);font-size:14px;min-height:320px;padding:24px;line-height:1.5}
   .tl li{position:relative;display:grid;grid-template-columns:58px 1fr;gap:14px;padding:3px 0}
   .tl .time{font-family:var(--mono);font-size:11px;color:var(--grey600);text-align:right;padding-top:12px}
   .rail{position:relative}
@@ -178,7 +179,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v16</span>
+    <span class="build" id="build">build&nbsp;v17</span>
   </nav>
 
   <div class="hero">
