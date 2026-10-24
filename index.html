@@ -178,7 +178,7 @@
     <div class="spacer"></div>
     <div class="wispr">🎙️ Voice-first · <b>hands-free</b></div>
     <div class="clock"><span class="cdot"></span><span id="clock">--:--:--</span></div>
-    <span class="build" id="build">build&nbsp;v15</span>
+    <span class="build" id="build">build&nbsp;v16</span>
   </nav>
 
   <div class="hero">
@@ -187,22 +187,8 @@
   </div>
 
   <div class="shell">
-    <div class="ihead">
-      <input id="title" type="hidden" />
-      <div class="titlerow">
-        <span class="ititle">Incident severity</span>
-        <div class="sevpick" id="sevpick">
-          <div class="sev s1" data-sev="SEV1">SEV1</div>
-          <div class="sev s2" data-sev="SEV2" data-on="1">SEV2</div>
-          <div class="sev s3" data-sev="SEV3">SEV3</div>
-        </div>
-      </div>
-      <div class="istat">
-        <span>Status <span class="chip"><span class="cdot"></span>Resolved</span></span>
-        <span>Window <b id="win">—</b></span>
-        <span>Entries <b id="ecount">0</b></span>
-      </div>
-    </div>
+    <input id="title" type="hidden" />
+    <span id="ecount" hidden></span><span id="win" hidden></span>
 
     <div class="grid">
       <div class="card">
@@ -294,15 +280,15 @@ setInterval(()=>{$("#clock").textContent=now()},1000);$("#clock").textContent=no
 function save(){localStorage.setItem("pp3_e",JSON.stringify(events));
   localStorage.setItem("pp3_m",JSON.stringify({title:title.value,sev}));autoGen();}
 function setSev(v){sev=v;document.querySelectorAll(".sev").forEach(el=>el.removeAttribute("data-on"));
-  document.querySelector(`.sev[data-sev="${v}"]`).setAttribute("data-on","1");save()}
-$("#sevpick").addEventListener("click",e=>{const s=e.target.closest(".sev");if(s)setSev(s.dataset.sev)});
+  var el=document.querySelector(`.sev[data-sev="${v}"]`); if(el) el.setAttribute("data-on","1"); save();}
+var sevpickEl=$("#sevpick"); if(sevpickEl) sevpickEl.addEventListener("click",e=>{const s=e.target.closest(".sev");if(s)setSev(s.dataset.sev)});
 setSev(sev);
 
 function renderTL(){
   const tl=$("#tl");
-  $("#ecount").textContent=events.length;
-  $("#tlmeta").textContent=events.length?events.length+" entries":"";
-  $("#win").textContent=events.length>=2?events[0].ts+" → "+events[events.length-1].ts:"—";
+  var ecEl=$("#ecount"); if(ecEl) ecEl.textContent=events.length;
+  var tmEl=$("#tlmeta"); if(tmEl) tmEl.textContent=events.length?events.length+" entries":"";
+  var winEl=$("#win"); if(winEl) winEl.textContent=events.length>=2?events[0].ts+" → "+events[events.length-1].ts:"—";
   if(!events.length){tl.innerHTML='<li class="empty">Dictate your first line — it drops in here in real time.</li>';return}
   tl.innerHTML="";
   events.forEach((e,i)=>{
